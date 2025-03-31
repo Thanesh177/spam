@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Live Stream Viewer</title>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    video { border: 1px solid #ccc; }
+    #status { margin-top: 10px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Live Stream Viewer</h1>
+  <video id="liveVideo" controls autoplay playsinline width="640" height="480"></video>
+  <p id="status"></p>
+  <p>
+    <a href="broadcast.html" target="_blank">Go to Broadcast Page</a> |
+    <a href="playback.html" target="_blank">View Saved Video</a>
+  </p>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const videoEl = document.getElementById('liveVideo');
+    const statusEl = document.getElementById('status');
+    
+    const mediaSource = new MediaSource();
+    videoEl.src = URL.createObjectURL(mediaSource);
+    
+    let sourceBuffer;
+    let queue = [];
+    let isAppending = false;
+    const mimeType = 'video/webm; codecs="vp8"'; // Must match broadcaster's MIME type
+
+    mediaSource.addEventListener('sourceopen', () => {
+      statusEl.textContent = "MediaSource opened.";
+      console.log("MediaSource opened");
+      if (MediaSource.isTypeSupported(mimeType)) {
+        try {
+          sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+        } catch (e) {
+          console.error("Error adding SourceBuffer:", e);
+          statusEl.textContent = "Error adding SourceBuffer: " + e;
+          return;
+        }
+        sourceBuffer.mode = 'sequence';
+        sourceBuffer.addEventListener('updateend', () => {
+          console.log("SourceBuffer updateend event fired.");
+          isAppending = false;
+          if (queue.length > 0) {
+            appendNextSegment();
+          }
+        });
+        console.log("SourceBuffer created with MIME type:", mimeType);
+        statusEl.textContent = "SourceBuffer created.";
+      } else {
+        console.error("MIME type not supported:", mimeType);
+        statusEl.textContent = "MIME type not supported in this browser.";
+      }
+    });
+
+    function appendNextSegment() {
+      if (queue.length > 0 && !sourceBuffer.updating) {
+        isAppending = true;
+        const segment = queue.shift();
+        try {
+          sourceBuffer.appendBuffer(segment);
+          console.log("Appending segment of size:", segment.byteLength);
+        } catch (e) {
+          console.error("Error appending segment:", e);
+          statusEl.textContent = "Error appending segment: " + e;
+          isAppending = false;
+        }
+      }
+    }
+
+    // Listen for live video chunks from the server
+    socket.on('liveStream', (chunk) => {
+      if (!chunk) return;
+      // Convert received ArrayBuffer to Uint8Array
+      const segment = new Uint8Array(chunk);
+      console.log("Received live chunk, size:", segment.byteLength);
+      queue.push(segment);
+      if (!isAppending && !sourceBuffer.updating) {
+        appendNextSegment();
+      }
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error("Socket connection error:", err);
+      statusEl.textContent = "Socket connection error: " + err;
+    });
+    
+    // Debug: Log socket connection
+    socket.on('connect', () => {
+      console.log("Socket connected:", socket.id);
+      statusEl.textContent = "Socket connected.";
+    });
+  </script>
+</body>
+</html>

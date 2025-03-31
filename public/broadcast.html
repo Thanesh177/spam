@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Broadcast Video</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #000000, #e2e8f0);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      color: #1e293b;
+      font-size: 2.5rem;
+    }
+
+    video {
+      border-radius: 15px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 800px;
+      height: auto;
+    }
+
+    button {
+      margin: 10px;
+      padding: 12px 24px;
+      font-size: 1rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      color: #fff;
+      background: linear-gradient(to right, #06b6d4, #3b82f6);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    button:hover {
+      background: linear-gradient(to right, #0891b2, #2563eb);
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+    }
+
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+      color: #ef4444;
+    }
+
+    #loader {
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin-top: 20px;
+      display: none;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 2rem;
+      }
+
+      button {
+        width: 100%;
+        margin: 5px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Broadcast Video</h1>
+  <video id="localVideo" autoplay playsinline></video>
+  <div>
+    <button id="startBroadcast">Start Broadcast</button>
+    <button id="stopBroadcast">Stop Broadcast</button>
+  </div>
+  <div id="status"></div>
+  <div id="loader"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const startBtn = document.getElementById('startBroadcast');
+    const stopBtn = document.getElementById('stopBroadcast');
+    const localVideo = document.getElementById('localVideo');
+    const statusEl = document.getElementById('status');
+    const loader = document.getElementById('loader');
+
+    let mediaRecorder;
+    let localStream;
+    const recordedChunks = [];
+
+    async function startBroadcast() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+
+        mediaRecorder = new MediaRecorder(localStream);
+        
+        mediaRecorder.ondataavailable = async (event) => {
+          if (event.data && event.data.size > 0) {
+            recordedChunks.push(event.data);
+            const buffer = await event.data.arrayBuffer();
+            socket.emit('liveStream', buffer);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          loader.style.display = 'block';
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const formData = new FormData();
+          formData.append('video', blob, 'recording.webm');
+
+          try {
+            const response = await fetch('/upload', { method: 'POST', body: formData });
+            statusEl.textContent = response.ok ? 'Video uploaded successfully!' : 'Upload failed';
+          } catch (err) {
+            statusEl.textContent = 'Error uploading video';
+          } finally {
+            loader.style.display = 'none';
+          }
+        };
+
+        mediaRecorder.start(1000);
+        statusEl.textContent = 'Broadcasting...';
+      } catch (error) {
+        statusEl.textContent = 'Error: ' + error.message;
+      }
+    }
+
+    function stopBroadcast() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      statusEl.textContent = 'Broadcast stopped';
+    }
+
+    startBtn.addEventListener('click', startBroadcast);
+    stopBtn.addEventListener('click', stopBroadcast);
+  </script>
+</body>
+</html>
