@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server); // Let Socket.IO negotiate transports automatically
 
-const port = 3000;
+const port = process.env.PORT || 3000;
 const videoDir = path.join(__dirname, 'videos');
 const videoFilePath = path.join(videoDir, 'stream.webm');
 
